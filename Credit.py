@@ -107,10 +107,6 @@ if st.button('Predict'):
 # Display model evaluation metrics
 st.header('Model Evaluation Metrics')
 
-# Display confusion matrix
-st.subheader('Confusion Matrix')
-st.write(conf_matrix)
-
 # Display classification report
 st.subheader('Classification Report')
 st.dataframe(class_report_df)
