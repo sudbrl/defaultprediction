@@ -68,7 +68,7 @@ param_grid = {
 }
 
 # Perform GridSearchCV to find the best parameters
-grid_search = GridSearchCV(estimator=model, param_grid=param_grid, cv=5, scoring='f1_weighted', n_jobs=-1)
+grid_search = GridSearchCV(estimator=model, param_grid=param_grid, cv=5, scoring='f1_weighted', n_jobs=1)
 grid_search.fit(X_train, y_train)
 
 # Train the best estimator found by GridSearchCV
