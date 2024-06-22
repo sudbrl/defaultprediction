@@ -1,12 +1,11 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
-from imblearn.over_sampling import SMOTE
 import streamlit as st
 import requests
 from io import BytesIO
-from xgboost import XGBClassifier
 
 # URL for the loan prediction CSV file on GitHub
 url = 'https://raw.githubusercontent.com/sudbrl/defaultprediction/main/loan_prediction.csv'
@@ -41,49 +40,26 @@ data['Property_Area'] = label_encoder.fit_transform(data['Property_Area'])
 data['Dependents'] = data['Dependents'].replace('3+', 3).astype(int)
 data['Loan_Status'] = label_encoder.fit_transform(data['Loan_Status'])
 
-# Feature Engineering: Create new features
-data['Total_Income'] = data['ApplicantIncome'] + data['CoapplicantIncome']
-data['Income_Loan_Ratio'] = data['Total_Income'] / data['LoanAmount']
-
 # Split the dataset into features and target variable
 X = data.drop('Loan_Status', axis=1)
 y = data['Loan_Status']
 
-# Apply SMOTE
-smote = SMOTE(random_state=0)
-X_resampled, y_resampled = smote.fit_resample(X, y)
+# Split the dataset into the training set and test set
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
-# Split the resampled dataset into the training set and test set
-X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=0)
-
-# Define the model
-model = XGBClassifier(random_state=0)
-
-# Define hyperparameters grid for GridSearchCV
-param_grid = {
-    'n_estimators': [50, 100, 200],
-    'max_depth': [3, 4, 5],
-    'learning_rate': [0.01, 0.1, 0.2],
-    'subsample': [0.8, 1.0]
-}
-
-# Perform GridSearchCV to find the best parameters
-grid_search = GridSearchCV(estimator=model, param_grid=param_grid, cv=5, scoring='f1_weighted', n_jobs=1)
-grid_search.fit(X_train, y_train)
-
-# Train the best estimator found by GridSearchCV
-best_model = grid_search.best_estimator_
-best_model.fit(X_train, y_train)
+# Train the Random Forest Classifier on the training set
+classifier = RandomForestClassifier(n_estimators=100, random_state=0)
+classifier.fit(X_train, y_train)
 
 # Evaluate the model
-y_pred = best_model.predict(X_test)
+y_pred = classifier.predict(X_test)
 conf_matrix = confusion_matrix(y_test, y_pred)
 class_report = classification_report(y_test, y_pred, output_dict=True)
 class_report_df = pd.DataFrame(class_report).transpose()
 
 # Function to predict loan status
 def predict_loan_status(input_data):
-    prediction = best_model.predict(input_data)
+    prediction = classifier.predict(input_data)
     return 'Approved' if prediction[0] == 1 else 'Rejected'
 
 # Streamlit code for GUI
@@ -120,9 +96,7 @@ input_data = pd.DataFrame({
     'LoanAmount': [loan_amount],
     'Loan_Amount_Term': [loan_amount_term],
     'Credit_History': [credit_history],
-    'Property_Area': [property_area],
-    'Total_Income': [applicant_income + coapplicant_income],
-    'Income_Loan_Ratio': [(applicant_income + coapplicant_income) / loan_amount]
+    'Property_Area': [property_area]
 })
 
 # Predict button
