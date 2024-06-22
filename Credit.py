@@ -2,10 +2,12 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import classification_report, confusion_matrix
 import streamlit as st
 import requests
-from io import StringIO
+from io import BytesIO
+from sklearn.utils import resample
+import base64
 
 # URL for the loan prediction CSV file on GitHub
 url = 'https://raw.githubusercontent.com/sudbrl/defaultprediction/main/loan_prediction.csv'
@@ -13,7 +15,7 @@ url = 'https://raw.githubusercontent.com/sudbrl/defaultprediction/main/loan_pred
 # Download the file using requests
 response = requests.get(url)
 if response.status_code == 200:
-    data = pd.read_csv(StringIO(response.text))
+    data = pd.read_csv(BytesIO(response.content))
 else:
     st.error(f"Failed to retrieve data from {url}")
 
@@ -21,7 +23,7 @@ else:
 if 'Loan_ID' in data.columns:
     data = data.drop('Loan_ID', axis=1)
 
-# Handle missing values (assuming similar preprocessing as before)
+# Handle missing values
 data['Gender'].fillna(data['Gender'].mode()[0], inplace=True)
 data['Married'].fillna(data['Married'].mode()[0], inplace=True)
 data['Dependents'].fillna(data['Dependents'].mode()[0], inplace=True)
@@ -40,16 +42,45 @@ data['Property_Area'] = label_encoder.fit_transform(data['Property_Area'])
 data['Dependents'] = data['Dependents'].replace('3+', 3).astype(int)
 data['Loan_Status'] = label_encoder.fit_transform(data['Loan_Status'])
 
+# Resample to handle class imbalance
+approved = data[data['Loan_Status'] == 1]
+rejected = data[data['Loan_Status'] == 0]
+
+approved_upsampled = resample(approved, 
+                              replace=True,    
+                              n_samples=len(rejected), 
+                              random_state=0)
+
+data_upsampled = pd.concat([rejected, approved_upsampled])
+
 # Split the dataset into features and target variable
-X = data.drop('Loan_Status', axis=1)
-y = data['Loan_Status']
+X = data_upsampled.drop('Loan_Status', axis=1)
+y = data_upsampled['Loan_Status']
 
 # Split the dataset into the training set and test set
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
 # Train the Random Forest Classifier on the training set
-classifier = RandomForestClassifier(n_estimators=100, random_state=0)
+classifier = RandomForestClassifier(n_estimators=100, random_state=0, class_weight='balanced')
 classifier.fit(X_train, y_train)
+
+# Evaluate the model
+y_pred = classifier.predict(X_test)
+conf_matrix = confusion_matrix(y_test, y_pred)
+class_report = classification_report(y_test, y_pred, output_dict=True)
+class_report_df = pd.DataFrame(class_report).transpose()
+
+# Function to generate and return a downloadable link for metrics Excel file
+def get_metrics_download_link_excel(metrics_df):
+    output = BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    metrics_df.to_excel(writer, sheet_name='Metrics', index=True)
+    writer.close()  # Close the writer after writing
+    output.seek(0)
+    excel_data = output.read()
+    b64 = base64.b64encode(excel_data).decode()
+    href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="loan_metrics.xlsx">Download Metrics Excel</a>'
+    return href
 
 # Function to predict loan status
 def predict_loan_status(input_data):
@@ -97,3 +128,8 @@ input_data = pd.DataFrame({
 if st.button('Predict'):
     prediction = predict_loan_status(input_data)
     st.write(f'Loan Status: {prediction}')
+
+# Add a download button for metrics Excel file
+if st.button('Download Metrics Excel'):
+    metrics_href = get_metrics_download_link_excel(class_report_df)
+    st.markdown(metrics_href, unsafe_allow_html=True)
