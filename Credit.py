@@ -3,6 +3,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
+from imblearn.over_sampling import SMOTE
 import streamlit as st
 import requests
 from io import BytesIO
@@ -17,7 +18,7 @@ if response.status_code == 200:
 else:
     st.error(f"Failed to retrieve data from {url}")
 
-# Drop the 'Loan_ID' column
+# Drop the 'Loan_ID' column if it exists
 if 'Loan_ID' in data.columns:
     data = data.drop('Loan_ID', axis=1)
 
@@ -44,11 +45,15 @@ data['Loan_Status'] = label_encoder.fit_transform(data['Loan_Status'])
 X = data.drop('Loan_Status', axis=1)
 y = data['Loan_Status']
 
-# Split the dataset into the training set and test set
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+# Apply SMOTE
+smote = SMOTE(random_state=0)
+X_resampled, y_resampled = smote.fit_resample(X, y)
 
-# Train the Random Forest Classifier on the training set
-classifier = RandomForestClassifier(n_estimators=100, random_state=0)
+# Split the resampled dataset into the training set and test set
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=0)
+
+# Train the Random Forest Classifier with class weights
+classifier = RandomForestClassifier(n_estimators=100, random_state=0, class_weight='balanced')
 classifier.fit(X_train, y_train)
 
 # Evaluate the model
