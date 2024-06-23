@@ -2,10 +2,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score
 import streamlit as st
 import requests
-from io import BytesIO
+from io import StringIO
 
 # URL for the loan prediction CSV file on GitHub
 url = 'https://raw.githubusercontent.com/sudbrl/defaultprediction/main/loan_prediction.csv'
@@ -13,15 +13,15 @@ url = 'https://raw.githubusercontent.com/sudbrl/defaultprediction/main/loan_pred
 # Download the file using requests
 response = requests.get(url)
 if response.status_code == 200:
-    data = pd.read_csv(BytesIO(response.content))
+    data = pd.read_csv(StringIO(response.text))
 else:
     st.error(f"Failed to retrieve data from {url}")
 
-# Drop the 'Loan_ID' column if it exists
+# Drop the 'Loan_ID' column
 if 'Loan_ID' in data.columns:
     data = data.drop('Loan_ID', axis=1)
 
-# Handle missing values
+# Handle missing values (assuming similar preprocessing as before)
 data['Gender'].fillna(data['Gender'].mode()[0], inplace=True)
 data['Married'].fillna(data['Married'].mode()[0], inplace=True)
 data['Dependents'].fillna(data['Dependents'].mode()[0], inplace=True)
@@ -50,12 +50,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # Train the Random Forest Classifier on the training set
 classifier = RandomForestClassifier(n_estimators=100, random_state=0)
 classifier.fit(X_train, y_train)
-
-# Evaluate the model
-y_pred = classifier.predict(X_test)
-conf_matrix = confusion_matrix(y_test, y_pred)
-class_report = classification_report(y_test, y_pred, output_dict=True)
-class_report_df = pd.DataFrame(class_report).transpose()
 
 # Function to predict loan status
 def predict_loan_status(input_data):
@@ -103,20 +97,3 @@ input_data = pd.DataFrame({
 if st.button('Predict'):
     prediction = predict_loan_status(input_data)
     st.write(f'Loan Status: {prediction}')
-
-# Display model evaluation metrics
-st.header('Model Evaluation Metrics')
-
-# Display classification report
-st.subheader('Classification Report')
-st.dataframe(class_report_df)
-
-# Display precision, recall, f1-score for each class
-st.subheader('Precision, Recall, F1-Score for Each Class')
-metrics_dict = {
-    'Precision': [class_report_df.loc['0', 'precision'], class_report_df.loc['1', 'precision']],
-    'Recall': [class_report_df.loc['0', 'recall'], class_report_df.loc['1', 'recall']],
-    'F1-Score': [class_report_df.loc['0', 'f1-score'], class_report_df.loc['1', 'f1-score']]
-}
-metrics_df = pd.DataFrame(metrics_dict, index=['Rejected', 'Approved'])
-st.write(metrics_df)
