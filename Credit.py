@@ -1,13 +1,23 @@
 import streamlit as st
 import numpy as np
 import joblib
+import requests
 
-# Load the trained model from model.pkl
 # URL to the model file on GitHub
 url = 'https://github.com/sudbrl/defaultprediction/raw/main/model.pkl'
 
 # Path to save the downloaded file
 model_file_path = 'model.pkl'
+
+# Function to download the model file
+def download_model(url, save_path):
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(save_path, 'wb') as file:
+            file.write(response.content)
+        print("Model file downloaded successfully.")
+    else:
+        raise Exception("Failed to download the model file.")
 
 # Streamlit app interface
 def main():
@@ -37,10 +47,16 @@ def main():
                             gender_encoded, education_encoded, property_rural, property_semiurban, property_urban,
                             0, 0]])  # Add placeholders for additional features if needed
 
+    # Download and load the model if not already loaded
+    if 'model' not in st.session_state:
+        download_model(url, model_file_path)
+        st.session_state.model = joblib.load(model_file_path)
+        st.success("Model loaded successfully!")
+
     # Predict loan approval on user input
     if st.button('Predict'):
         # Make prediction
-        prediction = model.predict(input_data)
+        prediction = st.session_state.model.predict(input_data)
         if prediction == 1:
             st.success('Loan Approved!')
         else:
