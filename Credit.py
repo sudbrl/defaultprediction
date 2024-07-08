@@ -3,8 +3,11 @@ import numpy as np
 import joblib
 
 # Load the trained model from model.pkl
+# URL to the model file on GitHub
+url = 'https://github.com/sudbrl/defaultprediction/raw/main/model.pkl'
+
+# Path to save the downloaded file
 model_file_path = 'model.pkl'
-model = joblib.load(model_file_path)
 
 # Streamlit app interface
 def main():
